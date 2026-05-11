@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Admin Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eceff1; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        
+        /* Login Overlay Style */
+        #login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(38, 50, 56, 0.95);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .login-box { background: white; padding: 40px; border-radius: 10px; text-align: center; width: 300px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #2196f3; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        
+        /* Dashboard Style (Hidden by default) */
+        #dashboard { display: none; gap: 20px; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); text-align: center; width: 220px; }
+        .temp-card { border-top: 5px solid #ff5722; }
+        .hum-card { border-top: 5px solid #2196f3; }
+        h2 { margin: 0; color: #546e7a; font-size: 1rem; text-transform: uppercase; }
+        .value { font-size: 3rem; font-weight: bold; margin: 15px 0; color: #263238; }
+        .source { font-size: 0.8rem; color: #90a4ae; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <!-- Login Form Section -->
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>Admin Login</h2>
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="attemptLogin()">Login</button>
+            <p id="error-msg" style="color: red; font-size: 0.8rem; margin-top: 10px; display: none;">Invalid Credentials</p>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Section -->
+    <div id="dashboard" class="container">
+        <div class="card temp-card">
+            <h2>Temperature</h2>
+            <div id="temp-val" class="value">--</div>
+            <div class="source">via MQTT (Mosquitto)</div>
+        </div>
+        <div class="card hum-card">
+            <h2>Humidity</h2>
+            <div id="hum-val" class="value">--</div>
+            <div class="source">via ESP32 API (HTTP)</div>
+        </div>
+    </div>
+
+    <script>
+        // --- VULNERABLE LOGIN LOGIC ---
+        async function attemptLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            const response = await fetch('http://localhost:5001/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass }) // Sent in plain text!
+            });
+
+            if (response.ok) {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'flex';
+                initDashboard();
+            } else {
+                alert("Login Failed!");
+            }
+        }
+
+        function initDashboard() {
+            // --- CONFIGURATION ---
+            const BROKER_IP = "192.168.1.181";
+            const ESP32_IP  = "192.168.1.182";
+            const MQTT_PORT = 9001;
+            const TEMP_TOPIC = "sensors/weather/temperature";
+
+            // --- MQTT SETTINGS ---
+            const client = new Paho.MQTT.Client(BROKER_IP, MQTT_PORT, "web_client_" + Math.random().toString(16).substr(2, 8));
+            client.onMessageArrived = (msg) => {
+                document.getElementById("temp-val").innerText = msg.payloadString + "°C";
+            };
+            client.connect({
+                onSuccess: () => { client.subscribe(TEMP_TOPIC); }
+            });
+
+            // --- API SETTINGS ---
+            async function updateHumidity() {
+                try {
+                    const response = await fetch(`http://${ESP32_IP}/api/humidity`);
+                    const data = await response.json();
+                    document.getElementById("hum-val").innerText = data.humidity.toFixed(1) + "%";
+                } catch (err) {
+                    console.error("API Error:", err);
+                }
+            }
+            setInterval(updateHumidity, 5000);
+            updateHumidity();
+        }
+    </script>
+</body>
+</html>
