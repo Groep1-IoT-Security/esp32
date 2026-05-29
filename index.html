@@ -95,11 +95,17 @@
             // --- API SETTINGS ---
             async function updateHumidity() {
                 try {
-                    const response = await fetch(`http://${ESP32_IP}/api/humidity`);
+                    // Direct the request to your Flask backend proxy instead of the ESP32 IP
+                    const response = await fetch(`http://localhost:5001/api/humidity`);
                     const data = await response.json();
-                    document.getElementById("hum-val").innerText = data.humidity.toFixed(1) + "%";
+                    
+                    if (data.humidity !== undefined) {
+                        document.getElementById("hum-val").innerText = data.humidity.toFixed(1) + "%";
+                    } else {
+                        console.warn("Proxy returned an error:", data);
+                    }
                 } catch (err) {
-                    console.error("API Error:", err);
+                    console.error("Dashboard API Error:", err);
                 }
             }
             setInterval(updateHumidity, 5000);

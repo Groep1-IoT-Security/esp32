@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: DeHaagseHogeschool2026CSTIOT
+      POSTGRES_DB: mqtt_data
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+
+  mqtt:
+    image: eclipse-mosquitto
+    container_name: mosquitto_broker
+    ports:
+      - "1883:1883"
+
+  app:
+    build: ./server
+    container_name: backend_app
+    ports:
+      - "5001:5001"
+    environment:
+      - DB_HOST=db
+    depends_on:
+      - db
+      - mqtt
+    # Dit start je server.py. Als je ook script.py wilt draaien, 
+    # kun je een 'entrypoint.sh' script maken dat beide start.
+    command: ["python", "server.py"]
+    
+  subscriber:
+    build: ./server
+    container_name: mqtt_subscriber
+    command: python script.py
+    depends_on:
+      - db
+      - mqtt
+    environment:
+      - DB_HOST=db
+
+volumes:
+  postgres_data:

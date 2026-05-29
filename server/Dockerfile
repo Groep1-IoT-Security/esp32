@@ -1,17 +1,12 @@
-# Use a lightweight Python image
 FROM python:3.9-slim
 
-# Set the working directory inside the container
 WORKDIR /app
 
-# Copy the requirements and install them
-RUN pip install flask flask-cors
+# Installeer dependencies (inclusief psycopg2 voor Postgres)
+RUN apt-get update && apt-get install -y libpq-dev gcc && \
+    pip install flask flask-cors requests paho-mqtt psycopg2-binary
 
-# Copy our app code
-COPY server.py .
+COPY . .
 
-# Expose the port Flask runs on
-EXPOSE 5000
-
-# Start the application
-CMD ["python", "server.py"]
+# We draaien de server op poort 5001 (zoals in je code staat)
+EXPOSE 5001

@@ -1,3 +1,5 @@
+#include "vulnerabilities.h"
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -20,8 +22,8 @@
 static const char *TAG = "WEATHER_STATION";
 
 /* --- CONFIGURATION --- */
-#define WIFI_SSID      "niet voor jou"
-#define WIFI_PASS      "7zh0wnqa2m"
+#define WIFI_SSID      "niet voor jou" //"NSELab"
+#define WIFI_PASS      "7zh0wnqa2m" //"NSELabWiFi"
 #define BROKER_URL     "mqtt://192.168.1.181" 
 
 #define SDA_GPIO 21
@@ -156,7 +158,7 @@ static void mqtt_app_start(void) {
 }
 
 /* --- MAIN APP --- */
-void app_main(void) {
+void sensor_and_api_task(void *pvParameters) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -203,6 +205,8 @@ void app_main(void) {
                 esp_mqtt_client_publish(mqtt_client, "sensors/weather/temperature", temp_payload, 0, 1, 0);
             }
         }
+        ESP_LOGI(TAG, "Sending temperature via BLE");
+        send_temp_notification(temperature);
 
         vTaskDelay(pdMS_TO_TICKS(5000));
     }

@@ -1,0 +1,18 @@
+dependencies:
+  idf:
+    source:
+      type: idf
+    version: 5.5.3
+  nopnop2002/ssd1306:
+    component_hash: dd6f8cb80b00884094f20df1dbb3a74832e71194b80f1a2e6a436a2ed8b8bfd0
+    dependencies: []
+    source:
+      git: https://github.com/nopnop2002/esp-idf-ssd1306.git
+      path: components/ssd1306/
+      type: git
+    version: 9d71f1a5b7756a78a9884cf1ea92d9d9711f67d1
+direct_dependencies:
+- nopnop2002/ssd1306
+manifest_hash: d2100b8f02a5b16b6a71ff75070def5df07aee33764dc4fd80fc46ed1e207354
+target: esp32
+version: 2.0.0
