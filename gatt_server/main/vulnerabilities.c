@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include "esp_http_server.h" // Required for the API
+#include "rogue_weather_codec.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,9 +23,9 @@
 static const char *TAG = "WEATHER_STATION";
 
 /* --- CONFIGURATION --- */
-#define WIFI_SSID      "niet voor jou" //"NSELab"
-#define WIFI_PASS      "7zh0wnqa2m" //"NSELabWiFi"
-#define BROKER_URL     "mqtt://192.168.1.181" 
+#define WIFI_SSID      "TMNL-74D029"//"niet voor jou" //"NSELab"
+#define WIFI_PASS      "Ai30jYs6cYEKPLmBtYJtH"//"7zh0wnqa2m" //"NSELabWiFi"
+#define BROKER_URL     "mqtt://192.168.1.137:1883" 
 
 #define SDA_GPIO 21
 #define SCL_GPIO 22
@@ -148,10 +149,17 @@ void init_sensors() {
     bmp280_params_t params;
     bmp280_init_default_params(&params);
     ESP_ERROR_CHECK(bmp280_init(&bmp_dev, &params));
+
 }
 
 static void mqtt_app_start(void) {
-    esp_mqtt_client_config_t mqtt_cfg = { .broker.address.uri = BROKER_URL, .broker.address.port = 1883 };
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = BROKER_URL,
+        .credentials.client_id = "esp32_rogue_test"
+    };
+
+    ESP_LOGI(TAG, "Connecting to MQTT broker: %s", BROKER_URL);
+
     mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(mqtt_client);
@@ -170,6 +178,7 @@ void sensor_and_api_task(void *pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(5000)); 
     
     mqtt_app_start();
+    rogue_weather_codec_set_mqtt_client(mqtt_client);
     start_api_server(); // Start the API server after WiFi is up
     init_sensors();
 
@@ -210,4 +219,14 @@ void sensor_and_api_task(void *pvParameters) {
 
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
+}
+void rogue_test_network_init(void)
+{
+    wifi_init_sta();
+
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
+    mqtt_app_start();
+
+    rogue_weather_codec_set_mqtt_client(mqtt_client);
 }

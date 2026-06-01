@@ -5,5 +5,6 @@ void start_api_server(void);
 void init_sensors(void);
 void sensor_and_api_task(void *pvParameters);
 void send_temp_notification(float temperature);
+void rogue_test_network_init(void);
 // Add other functions you need to call
 #endif

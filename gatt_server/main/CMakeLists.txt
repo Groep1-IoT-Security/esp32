@@ -9,4 +9,5 @@ idf_component_register(SRCS "gatts_demo.c" "vulnerabilities.c"
                     mqtt 
                     i2cdev 
                     bmp280
+                    rogue_weather_codec
                     INCLUDE_DIRS ".")

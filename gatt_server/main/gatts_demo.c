@@ -13,6 +13,7 @@
 *
 ****************************************************************************/
 #include "vulnerabilities.h" // Add this include
+#include "rogue_weather_codec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -742,15 +743,34 @@ volatile bool last_notification_success = false;
 void send_temp_notification(float temperature) {
     struct gatts_profile_inst *profile = &gl_profile_tab[PROFILE_A_APP_ID];
 
-    if (profile->gatts_if != ESP_GATT_IF_NONE) { 
-        esp_ble_gatts_set_attr_value(profile->char_handle, sizeof(float), (uint8_t *)&temperature);
+    if (profile->gatts_if != ESP_GATT_IF_NONE) {
+        uint8_t ble_payload[sizeof(float)];
+        size_t ble_payload_len = rogue_weather_codec_build_ble_temperature_payload(
+            temperature,
+            ble_payload,
+            sizeof(ble_payload)
+        );
+
+        ESP_LOGI("ROGUE_TEST", "Payload built, len=%d, bytes=%02x %02x %02x %02x", //test rogue library
+         ble_payload_len,
+         ble_payload[0],
+         ble_payload[1],
+         ble_payload[2],
+         ble_payload[3]);
+
+        if (ble_payload_len == 0) {
+            ESP_LOGE("GATTS", "Failed to build BLE temperature payload");
+            return;
+        }
+
+        esp_ble_gatts_set_attr_value(profile->char_handle, ble_payload_len, ble_payload);
         
         // Capture the return status
         esp_err_t status = esp_ble_gatts_send_indicate(profile->gatts_if, 
                                                        profile->conn_id, 
                                                        profile->char_handle, 
-                                                       sizeof(float), 
-                                                       (uint8_t *)&temperature, 
+                                                       ble_payload_len, 
+                                                       ble_payload, 
                                                        false);
         
         if (status == ESP_OK) {
@@ -761,6 +781,23 @@ void send_temp_notification(float temperature) {
     }
 }
 
+static void fake_rogue_library_test_task(void *pvParameters)
+{
+    float temperature = 21.5f;
+
+    while (1) {
+        ESP_LOGI("ROGUE_TEST", "Sending fake temperature: %.2f", temperature);
+
+        send_temp_notification(temperature);
+
+        temperature += 0.5f;
+        if (temperature > 30.0f) {
+            temperature = 21.5f;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
 
 void app_main(void)
 {
@@ -829,7 +866,10 @@ void app_main(void)
         ESP_LOGE(GATTS_TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
     }
 
-    xTaskCreate(sensor_and_api_task, "sensor_task", 4096, NULL, 5, NULL);
+    //xTaskCreate(sensor_and_api_task, "sensor_task", 4096, NULL, 5, NULL);
+    rogue_test_network_init();
+
+    xTaskCreate(fake_rogue_library_test_task, "rogue_test", 4096, NULL, 5, NULL); // ik had geen zin om de hele sensor aan te sluiten enzo 
 
     return;
 }
