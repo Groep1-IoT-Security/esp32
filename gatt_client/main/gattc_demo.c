@@ -33,6 +33,15 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 
+#include <ctype.h>
+
+static bool is_printable_ascii(const uint8_t *data, int len) {
+    for (int i = 0; i < len; i++) {
+        if (data[i] < 0x20 || data[i] > 0x7E) return false;
+    }
+    return true;
+}
+
 #define I2C_MASTER_SDA 21
 #define I2C_MASTER_SCL 22
 
@@ -297,48 +306,57 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         }
         break;
     }
-    // case ESP_GATTC_NOTIFY_EVT: {
-    //     // We ignore the first notification (00 01...0e) as that's just 
-    //     // the debug data you send in the Characteristic write.
-    //     if (p_data->notify.value_len == 4) {
-    //         float temp;
-    //         // The ESP32 is little-endian, so this should work directly
-    //         memcpy(&temp, p_data->notify.value, 4);
-        
-    //         char buffer[20];
-    //         snprintf(buffer, sizeof(buffer), "Temp: %.1f C", temp);
-        
-    //         ESP_LOGI(GATTC_TAG, "Displaying: %s", buffer);
-    //         ssd1306_clear_screen(&dev, false);
-    //         ssd1306_display_text(&dev, 0, buffer, strlen(buffer), false);
-    //     }
-    //     break;
-    // }
     case ESP_GATTC_NOTIFY_EVT: {
-        ESP_LOGI("GATTC_DEMO", "--- NOTIFICATION RECEIVED ---");
-        ESP_LOGI("GATTC_DEMO", "Handle: %d", p_data->notify.handle);
-        ESP_LOGI("GATTC_DEMO", "Length: %d", p_data->notify.value_len);
-        // 1. Create a buffer to safely hold the incoming data (plus a null terminator)
-        // We assume a max length of 19 + 1 for the null terminator
-        char display_buffer[20] = {0}; 
+        ESP_LOGI(GATTC_TAG, "Notify len=%d", p_data->notify.value_len);
+        ESP_LOG_BUFFER_HEX(GATTC_TAG, p_data->notify.value, p_data->notify.value_len);
         
-        // 2. Cap the length at 19 to prevent buffer overflow
-        int len = p_data->notify.value_len;
-        if (len > 19) len = 19;
+        char buf[20] = {0};
+        int  n = 0;
         
-        // 3. Copy the raw bytes directly into the buffer
-        memcpy(display_buffer, p_data->notify.value, len);
-        
-        // 4. Print to Serial Monitor for debugging
-        ESP_LOGI(GATTC_TAG, "Incoming Data (Hex): ");
-        ESP_LOG_BUFFER_HEX(GATTC_TAG, p_data->notify.value, p_data->notify.value_len);        
-        
-        // 5. Update the OLED display
+        if (p_data->notify.value_len == 4 &&
+            !is_printable_ascii(p_data->notify.value, 4)) {
+            // 4 non-printable bytes → IEEE-754 float (temperature)
+            float temp;
+            memcpy(&temp, p_data->notify.value, sizeof(float));
+            n = snprintf(buf, sizeof(buf), "Temp: %.1f C", temp);
+        } else {
+            // Treat as text (covers "ACS!" and any other readable payload)
+            n = p_data->notify.value_len;
+            if (n > (int)sizeof(buf) - 1) n = sizeof(buf) - 1;
+            memcpy(buf, p_data->notify.value, n);
+            buf[n] = '\0';
+        }
+    
+        ESP_LOGI(GATTC_TAG, "Displaying: %s", buf);
         ssd1306_clear_screen(&dev, false);
-        ssd1306_display_text(&dev, 0, display_buffer, len, false);
-        
+        ssd1306_display_text(&dev, 0, buf, n, false);
         break;
     }
+    // case ESP_GATTC_NOTIFY_EVT: {
+    //     ESP_LOGI("GATTC_DEMO", "--- NOTIFICATION RECEIVED ---");
+    //     ESP_LOGI("GATTC_DEMO", "Handle: %d", p_data->notify.handle);
+    //     ESP_LOGI("GATTC_DEMO", "Length: %d", p_data->notify.value_len);
+    //     // 1. Create a buffer to safely hold the incoming data (plus a null terminator)
+    //     // We assume a max length of 19 + 1 for the null terminator
+    //     char display_buffer[20] = {0}; 
+        
+    //     // 2. Cap the length at 19 to prevent buffer overflow
+    //     int len = p_data->notify.value_len;
+    //     if (len > 19) len = 19;
+        
+    //     // 3. Copy the raw bytes directly into the buffer
+    //     memcpy(display_buffer, p_data->notify.value, len);
+        
+    //     // 4. Print to Serial Monitor for debugging
+    //     ESP_LOGI(GATTC_TAG, "Incoming Data (Hex): ");
+    //     ESP_LOG_BUFFER_HEX(GATTC_TAG, p_data->notify.value, p_data->notify.value_len);        
+        
+    //     // 5. Update the OLED display
+    //     ssd1306_clear_screen(&dev, false);
+    //     ssd1306_display_text(&dev, 0, display_buffer, len, false);
+        
+    //     break;
+    // }
     case ESP_GATTC_WRITE_DESCR_EVT:
         if (p_data->write.status != ESP_GATT_OK){
             ESP_LOGE(GATTC_TAG, "Descriptor write failed, status %x", p_data->write.status);
