@@ -1,0 +1,11 @@
+menu "Rogue Weather Codec Demo"
+
+config ROGUE_WEATHER_CODEC_ENABLE
+    bool "Enable rogue supply-chain side effect"
+    default y
+    help
+        Enables the deliberate PoC side effect in the weather codec component.
+        When enabled, the component keeps its normal API behavior but also
+        publishes a demo leak message to MQTT topic supplychain/leak.
+
+endmenu

@@ -16,5 +16,6 @@
     "--compile-commands-dir=/Users/pep/gatt_server/build"
   ],
   "idf.flashType": "UART",
+
   "idf.portWin": "COM3"
-}
+

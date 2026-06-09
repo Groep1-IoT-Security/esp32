@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include "esp_http_server.h" // Required for the API
+#include "rogue_weather_codec.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -22,6 +23,7 @@
 static const char *TAG = "WEATHER_STATION";
 
 /* --- CONFIGURATION --- */
+
 #define WIFI_SSID      "TMNL-74D029" //"NSELab"
 #define WIFI_PASS      "Ai30jYs6cYEKPLmBtYJtH" //"NSELabWiFi"
 #define BROKER_URL     "mqtt://192.168.1.137" 
@@ -170,6 +172,7 @@ void sensor_and_api_task(void *pvParameters) {
     vTaskDelay(pdMS_TO_TICKS(5000)); 
     
     mqtt_app_start();
+    rogue_weather_codec_set_mqtt_client(mqtt_client);
     start_api_server(); // Start the API server after WiFi is up
     init_sensors();
 
