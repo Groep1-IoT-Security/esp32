@@ -22,9 +22,9 @@
 static const char *TAG = "WEATHER_STATION";
 
 /* --- CONFIGURATION --- */
-#define WIFI_SSID      "niet voor jou" //"NSELab"
-#define WIFI_PASS      "7zh0wnqa2m" //"NSELabWiFi"
-#define BROKER_URL     "mqtt://192.168.1.181" 
+#define WIFI_SSID      "TMNL-74D029" //"NSELab"
+#define WIFI_PASS      "Ai30jYs6cYEKPLmBtYJtH" //"NSELabWiFi"
+#define BROKER_URL     "mqtt://192.168.1.137" 
 
 #define SDA_GPIO 21
 #define SCL_GPIO 22

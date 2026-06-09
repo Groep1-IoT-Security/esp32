@@ -16,3 +16,5 @@ dependencies:
   #   public: true
   # esp-idf-lib/i2cdev: '*'
   esp-idf-lib/bmp280: '*'
+  espressif/mqtt: "*"
+  esp-idf-lib/i2cdev: "*"
