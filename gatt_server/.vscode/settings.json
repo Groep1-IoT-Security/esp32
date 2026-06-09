@@ -5,7 +5,7 @@
     "board/esp32-wrover-kit-3.3v.cfg"
   ],
   "idf.port": "/dev/tty.usbserial-A5069RR4",
-  "idf.currentSetup": "/Users/pep/.espressif/v5.5.3/esp-idf",
+  "idf.currentSetup": "C:\\esp\\v6.0\\esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32"
   },
@@ -15,5 +15,6 @@
     "--query-driver=**",
     "--compile-commands-dir=/Users/pep/gatt_server/build"
   ],
-  "idf.flashType": "UART"
+  "idf.flashType": "UART",
+  "idf.portWin": "COM4"
 }
