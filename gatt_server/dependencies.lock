@@ -51,7 +51,7 @@ dependencies:
       require: private
       version: '*'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32
@@ -65,13 +65,25 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 2.1.1
+  espressif/mqtt:
+    component_hash: ffdad5659706b4dc14bc63f8eb73ef765efa015bf7e9adf71c813d52a2dc9342
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
   idf:
     source:
       type: idf
-    version: 5.5.3
+    version: 6.0.0
 direct_dependencies:
 - esp-idf-lib/bmp280
+- esp-idf-lib/i2cdev
+- espressif/mqtt
 - idf
-manifest_hash: e9139083c387eac863d68b0a593ed1c2631dc643670305c76e9d8ac18ee8f285
+manifest_hash: 856bfeac48d7eec577064dbdd2c6ea781d22ee38795880960dba3bd90e259efe
 target: esp32
-version: 2.0.0
+version: 3.0.0

@@ -13,6 +13,7 @@
 *
 ****************************************************************************/
 #include "vulnerabilities.h" // Add this include
+#include "rogue_weather_codec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -742,15 +743,27 @@ volatile bool last_notification_success = false;
 void send_temp_notification(float temperature) {
     struct gatts_profile_inst *profile = &gl_profile_tab[PROFILE_A_APP_ID];
 
-    if (profile->gatts_if != ESP_GATT_IF_NONE) { 
-        esp_ble_gatts_set_attr_value(profile->char_handle, sizeof(float), (uint8_t *)&temperature);
+    if (profile->gatts_if != ESP_GATT_IF_NONE) {
+        uint8_t ble_payload[sizeof(float)];
+        size_t ble_payload_len = rogue_weather_codec_build_ble_temperature_payload(
+            temperature,
+            ble_payload,
+            sizeof(ble_payload)
+        );
+
+        if (ble_payload_len == 0) {
+            ESP_LOGE("GATTS", "Failed to build BLE temperature payload");
+            return;
+        }
+
+        esp_ble_gatts_set_attr_value(profile->char_handle, ble_payload_len, ble_payload);
         
         // Capture the return status
         esp_err_t status = esp_ble_gatts_send_indicate(profile->gatts_if, 
                                                        profile->conn_id, 
                                                        profile->char_handle, 
-                                                       sizeof(float), 
-                                                       (uint8_t *)&temperature, 
+                                                       ble_payload_len, 
+                                                       ble_payload, 
                                                        false);
         
         if (status == ESP_OK) {

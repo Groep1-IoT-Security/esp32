@@ -9,11 +9,11 @@
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32"
   },
-  "clangd.path": "/Users/pep/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
+  "clangd.path": "C:\\Espressif\\tools\\esp-clang\\esp-20.1.1_20250829\\esp-clang\\bin\\clangd.exe",
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=/Users/pep/development/hhs-projecten/Weather Station/build"
+    "--compile-commands-dir=c:\\Users\\robbi\\cst-project\\esp32\\build"
   ],
   "idf.flashType": "UART"
 }
