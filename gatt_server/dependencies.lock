@@ -78,12 +78,12 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 6.0.0
+    version: 5.5.3
 direct_dependencies:
 - esp-idf-lib/bmp280
 - esp-idf-lib/i2cdev
 - espressif/mqtt
 - idf
-manifest_hash: 856bfeac48d7eec577064dbdd2c6ea781d22ee38795880960dba3bd90e259efe
+manifest_hash: 72dd8699b58779e8788c5820bbbbed0e494fa14639973726bec33659e65bf245
 target: esp32
-version: 3.0.0
+version: 2.0.0
