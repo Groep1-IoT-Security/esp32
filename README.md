@@ -21,7 +21,7 @@ Wifi Sniffing   |   Ja
 MQTT DoS        |   Ja
 UART SQL-I      |   Ja?
 BLE MitM        |   BLE werkt, MitM half?
-Rogue Library   |   Nee
+Rogue Library   |   Ja
 Rogue Wifi / OTA|   Nee
 Buffer Overflow |   Ja
 Flash Dump      |   Ja
