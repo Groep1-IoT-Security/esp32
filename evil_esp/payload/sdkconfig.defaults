@@ -1,0 +1,8 @@
+#
+# Minimal sdkconfig voor de Malicious Payload firmware.
+# Genereer een volledige config met: idf.py set-target esp32 && idf.py menuconfig
+# Of kopieer de defaults: idf.py set-target esp32 && idf.py save-defconfig
+#
+CONFIG_IDF_TARGET="esp32"
+CONFIG_STATUS_LED_GPIO=2
+CONFIG_PARTITION_TABLE_SINGLE_APP=y
