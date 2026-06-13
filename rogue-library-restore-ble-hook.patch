@@ -1,0 +1,228 @@
+diff --git a/gatt_server/components/rogue_weather_codec/CMakeLists.txt b/gatt_server/components/rogue_weather_codec/CMakeLists.txt
+new file mode 100644
+index 0000000..948b71d
+--- /dev/null
++++ b/gatt_server/components/rogue_weather_codec/CMakeLists.txt
+@@ -0,0 +1,5 @@
++idf_component_register(
++    SRCS "rogue_weather_codec.c"
++    INCLUDE_DIRS "include"
++    REQUIRES mqtt
++)
+diff --git a/gatt_server/components/rogue_weather_codec/Kconfig b/gatt_server/components/rogue_weather_codec/Kconfig
+new file mode 100644
+index 0000000..f5b028d
+--- /dev/null
++++ b/gatt_server/components/rogue_weather_codec/Kconfig
+@@ -0,0 +1,11 @@
++menu "Rogue Weather Codec Demo"
++
++config ROGUE_WEATHER_CODEC_ENABLE
++    bool "Enable rogue supply-chain side effect"
++    default y
++    help
++        Enables the deliberate PoC side effect in the weather codec component.
++        When enabled, the component keeps its normal API behavior but also
++        publishes a demo leak message to MQTT topic supplychain/leak.
++
++endmenu
+diff --git a/gatt_server/components/rogue_weather_codec/include/rogue_weather_codec.h b/gatt_server/components/rogue_weather_codec/include/rogue_weather_codec.h
+new file mode 100644
+index 0000000..5f6b50e
+--- /dev/null
++++ b/gatt_server/components/rogue_weather_codec/include/rogue_weather_codec.h
+@@ -0,0 +1,31 @@
++#ifndef ROGUE_WEATHER_CODEC_H
++#define ROGUE_WEATHER_CODEC_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include "mqtt_client.h"
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/**
++ * Looks like normal dependency wiring: the codec can use the app's MQTT client
++ * for diagnostics/telemetry. In the PoC version, this is abused as the leak path.
++ */
++void rogue_weather_codec_set_mqtt_client(esp_mqtt_client_handle_t client);
++
++/**
++ * Builds the BLE payload for the temperature notification.
++ * Normal behavior: writes the raw float into out and returns sizeof(float).
++ * PoC behavior: keeps the normal behavior, but also publishes a demo leak.
++ */
++size_t rogue_weather_codec_build_ble_temperature_payload(float temperature,
++                                                         uint8_t *out,
++                                                         size_t out_len);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif // ROGUE_WEATHER_CODEC_H
+diff --git a/gatt_server/components/rogue_weather_codec/rogue_weather_codec.c b/gatt_server/components/rogue_weather_codec/rogue_weather_codec.c
+new file mode 100644
+index 0000000..f0a91bc
+--- /dev/null
++++ b/gatt_server/components/rogue_weather_codec/rogue_weather_codec.c
+@@ -0,0 +1,60 @@
++#include "rogue_weather_codec.h"
++
++#include <stdio.h>
++#include <string.h>
++#include "esp_log.h"
++#include "sdkconfig.h"
++
++static const char *TAG = "ROGUE_CODEC";
++static const char *LEAK_TOPIC = "supplychain/leak";
++
++// Deliberately fake classroom secret. Do not exfiltrate real WiFi passwords or real credentials.
++static const char *DEMO_TOKEN = "ESP32_DEMO_SUPPLY_CHAIN_TOKEN";
++
++static esp_mqtt_client_handle_t s_mqtt_client = NULL;
++
++void rogue_weather_codec_set_mqtt_client(esp_mqtt_client_handle_t client)
++{
++    s_mqtt_client = client;
++}
++
++static void publish_demo_leak(float temperature)
++{
++#if CONFIG_ROGUE_WEATHER_CODEC_ENABLE
++    if (s_mqtt_client == NULL) {
++        return;
++    }
++
++    char payload[160];
++    snprintf(payload, sizeof(payload),
++             "{\"source\":\"rogue_weather_codec\","
++             "\"event\":\"ble_temperature_encode\","
++             "\"demo_token\":\"%s\","
++             "\"temperature\":%.2f}",
++             DEMO_TOKEN, temperature);
++
++    if (esp_mqtt_client_publish(s_mqtt_client, LEAK_TOPIC, payload, 0, 0, 0) < 0) {
++        ESP_LOGW(TAG,"FAILED TO PUBLISH PoC side effect");
++    } else {
++    ESP_LOGW(TAG, "PoC side effect: published demo leak to MQTT topic '%s'", LEAK_TOPIC);
++    }
++#endif
++}
++
++size_t rogue_weather_codec_build_ble_temperature_payload(float temperature,
++                                                         uint8_t *out,
++                                                         size_t out_len)
++{
++    if (out == NULL || out_len < sizeof(float)) {
++        ESP_LOGE(TAG, "Output buffer too small for BLE temperature payload");
++        return 0;
++    }
++
++    // The legitimate behavior: preserve the existing GATT payload format.
++    memcpy(out, &temperature, sizeof(float));
++
++    // The supply-chain behavior: a dependency with the same API adds an unexpected side effect.
++    publish_demo_leak(temperature);
++
++    return sizeof(float);
++}
+diff --git a/gatt_server/main/CMakeLists.txt b/gatt_server/main/CMakeLists.txt
+index bb1cfcb..934fa4c 100644
+--- a/gatt_server/main/CMakeLists.txt
++++ b/gatt_server/main/CMakeLists.txt
+@@ -9,4 +9,5 @@ idf_component_register(SRCS "gatts_demo.c" "vulnerabilities.c"
+                     mqtt 
+                     i2cdev 
+                     bmp280
++                    rogue_weather_codec
+                     INCLUDE_DIRS ".")
+diff --git a/gatt_server/main/gatts_demo.c b/gatt_server/main/gatts_demo.c
+index 150a35e..17d984f 100644
+--- a/gatt_server/main/gatts_demo.c
++++ b/gatt_server/main/gatts_demo.c
+@@ -13,6 +13,7 @@
+ *
+ ****************************************************************************/
+ #include "vulnerabilities.h" // Add this include
++#include "rogue_weather_codec.h"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -742,15 +743,27 @@ volatile bool last_notification_success = false;
+ void send_temp_notification(float temperature) {
+     struct gatts_profile_inst *profile = &gl_profile_tab[PROFILE_A_APP_ID];
+ 
+-    if (profile->gatts_if != ESP_GATT_IF_NONE) { 
+-        esp_ble_gatts_set_attr_value(profile->char_handle, sizeof(float), (uint8_t *)&temperature);
++    if (profile->gatts_if != ESP_GATT_IF_NONE) {
++        uint8_t ble_payload[sizeof(float)];
++        size_t ble_payload_len = rogue_weather_codec_build_ble_temperature_payload(
++            temperature,
++            ble_payload,
++            sizeof(ble_payload)
++        );
++
++        if (ble_payload_len == 0) {
++            ESP_LOGE("GATTS", "Failed to build BLE temperature payload");
++            return;
++        }
++
++        esp_ble_gatts_set_attr_value(profile->char_handle, ble_payload_len, ble_payload);
+         
+         // Capture the return status
+         esp_err_t status = esp_ble_gatts_send_indicate(profile->gatts_if, 
+                                                        profile->conn_id, 
+                                                        profile->char_handle, 
+-                                                       sizeof(float), 
+-                                                       (uint8_t *)&temperature, 
++                                                       ble_payload_len, 
++                                                       ble_payload, 
+                                                        false);
+         
+         if (status == ESP_OK) {
+diff --git a/gatt_server/main/idf_component.yml b/gatt_server/main/idf_component.yml
+index 805a589..ae04977 100644
+--- a/gatt_server/main/idf_component.yml
++++ b/gatt_server/main/idf_component.yml
+@@ -3,16 +3,6 @@ dependencies:
+   ## Required IDF version
+   idf:
+     version: '>=4.1.0'
+-  # # Put list of dependencies here
+-  # # For components maintained by Espressif:
+-  # component: "~1.0.0"
+-  # # For 3rd party components:
+-  # username/component: ">=1.0.0,<2.0.0"
+-  # username2/component2:
+-  #   version: "~1.0.0"
+-  #   # For transient dependencies `public` flag can be set.
+-  #   # `public` flag doesn't have an effect dependencies of the `main` component.
+-  #   # All dependencies of `main` are public by default.
+-  #   public: true
+-  # esp-idf-lib/i2cdev: '*'
++  esp-idf-lib/i2cdev: '*'
+   esp-idf-lib/bmp280: '*'
++  espressif/mqtt: '*'
+diff --git a/gatt_server/main/vulnerabilities.c b/gatt_server/main/vulnerabilities.c
+index 060ec71..1858f38 100644
+--- a/gatt_server/main/vulnerabilities.c
++++ b/gatt_server/main/vulnerabilities.c
+@@ -12,6 +12,7 @@
+ #include "esp_log.h"
+ #include "mqtt_client.h"
+ #include "esp_http_server.h" // Required for the API
++#include "rogue_weather_codec.h"
+ 
+ #include "freertos/FreeRTOS.h"
+ #include "freertos/task.h"
+@@ -170,6 +171,7 @@ void sensor_and_api_task(void *pvParameters) {
+     vTaskDelay(pdMS_TO_TICKS(5000)); 
+     
+     mqtt_app_start();
++    rogue_weather_codec_set_mqtt_client(mqtt_client);
+     start_api_server(); // Start the API server after WiFi is up
+     init_sensors();
+ 
